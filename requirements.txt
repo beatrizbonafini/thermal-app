@@ -1,0 +1,10 @@
+streamlit
+flirimageextractor
+matplotlib
+numpy
+opencv-python
+Pillow
+flyr
+scipy
+paramiko # posso remover depois
+seaborn
