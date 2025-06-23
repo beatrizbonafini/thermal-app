@@ -2,8 +2,8 @@
 __pycache__/
 
 # Local data
-.db
-.jpg
+*.db
+*.jpg
 
 # Models
 models/
