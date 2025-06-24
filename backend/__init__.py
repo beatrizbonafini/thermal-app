@@ -1,3 +1,3 @@
-from .server import get_image_inference
+from .instace_segmentation import InstanceSegmentationPredictor
 
-__all__ = ["get_image_inference"]
+__all__ = ["InstanceSegmentationPredictor"]

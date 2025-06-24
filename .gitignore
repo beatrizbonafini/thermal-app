@@ -3,7 +3,16 @@ __pycache__/
 
 # Local data
 *.db
+*.sqlite
+
+# Images
 *.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
 
 # Models
 models/
