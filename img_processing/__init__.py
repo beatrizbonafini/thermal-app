@@ -1,3 +1,3 @@
-from .processed_image import ProcessedImage   # re-export
+from .processed_image import ProcessedImage, Base   # re-export
 
-__all__ = ["ProcessedImage"]
+__all__ = ["ProcessedImage", "Base"]

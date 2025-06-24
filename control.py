@@ -131,6 +131,21 @@ def thermal_stats(thermal_matrix, exif_data=None):
     } | info
     return pd.DataFrame(stats)
 
+def calculate_histogram(thermal_matrix, bins=60):
+    """
+    Calculate the histogram of a thermal matrix.
+    
+    Parameters:
+    - thermal_matrix: np.ndarray, the thermal image data.
+    - bins: int, number of bins for the histogram.
+    
+    Returns:
+    - hist: np.ndarray, histogram values.
+    - bin_edges: np.ndarray, edges of the bins.
+    """
+    hist, bin_edges = np.histogram(thermal_matrix[thermal_matrix!=0], bins=bins)
+    return hist, bin_edges
+
 def image_histogram(thermal_image):
 
     fig, ax = plt.subplots()

@@ -6,5 +6,5 @@ opencv-python
 Pillow
 flyr
 scipy
-paramiko # posso remover depois
 seaborn
+SQLAlchemy

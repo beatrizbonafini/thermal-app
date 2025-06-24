@@ -1,16 +1,8 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-def register_animal(study_id, specie, sex, age, weight):
-    conn = sqlite3.connect("animal-db.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO animal (study_id, specie, sex, age, weight) VALUES (?, ?, ?, ?, ?) ", (study_id, specie, sex, age, weight))
-    conn.commit()
-    conn.close()
-
-def list_animals():
-    conn = sqlite3.connect("animal-db.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM animal")
-    animals = cursor.fetchall()
-    conn.close()
-    return animals
+def init_db():
+    engine = create_engine('sqlite:///animal-db.db')
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    return session

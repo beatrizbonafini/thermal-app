@@ -9,8 +9,14 @@ from PIL import Image
 import io
 import glob
 import os
-from img_processing import ProcessedImage
+from img_processing import ProcessedImage, Base
 from backend import InstanceSegmentationPredictor
+from services.database.connection import init_db
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
+
+session = init_db()
+Base.metadata.create_all(session.bind)
 
 st.set_page_config(page_title="Thermography Image Mice Analyser", 
                    page_icon="🐭", 
@@ -75,17 +81,27 @@ def generate_visualization(unpacked_image, data_segmentation, inline=False):
     """
     thermal_image = unpacked_image['thermal']
     optical_image = unpacked_image['optical']
-    
+    head_mask = control.crop_mask_from_image(thermal_image, data_segmentation['masks'][0])
+    head_bbox = control.crop_boxes_from_image(thermal_image, data_segmentation['boxes'][0])
+    implant_mask = control.crop_mask_from_image(thermal_image, data_segmentation['masks'][1])
+    implant_bbox = control.crop_boxes_from_image(thermal_image, data_segmentation['boxes'][1])
+    donut_roi = control.calculate_donut_roi(control.crop_mask_from_image(thermal_image, data_segmentation['masks'][1]), thermal_image)
+
     dict_images = {
         'original': unpacked_image['original'],
         'optical': optical_image,
         'thermal': thermal_image,
         'grayscale': unpacked_image['gray'],
-        'head_mask': control.crop_mask_from_image(thermal_image, data_segmentation['masks'][0]),
-        'head_bbox': control.crop_boxes_from_image(thermal_image, data_segmentation['boxes'][0]),
-        'implant_mask': control.crop_mask_from_image(thermal_image, data_segmentation['masks'][1]),
-        'implant_bbox': control.crop_boxes_from_image(thermal_image, data_segmentation['boxes'][1]),
-        'donut_roi': control.calculate_donut_roi(control.crop_mask_from_image(thermal_image , data_segmentation['masks'][1]), thermal_image)
+        'head_bbox': head_bbox,
+        'head_mask': head_mask,
+        'head_histogram': head_mask,
+        'implant_bbox': implant_bbox,
+        'implant_mask': implant_mask,
+        'implant_histogram': implant_mask,  
+        'donut_roi': donut_roi,
+        'donut_roi_histogram': donut_roi,
+        'temperature_profile_y': implant_mask,
+        'temperature_profile_x': implant_mask,
     }
 
     if inline:
@@ -93,7 +109,7 @@ def generate_visualization(unpacked_image, data_segmentation, inline=False):
         ncols = len(dict_images)
         figsize = (ncols * 3, 3)
     else:
-        nrows = 3
+        nrows = 4
         ncols = 4
         figsize = (ncols * 3, 9)
 
@@ -103,7 +119,21 @@ def generate_visualization(unpacked_image, data_segmentation, inline=False):
     for i, (key, value) in enumerate(dict_images.items()):
         if i >= nrows * ncols: break
         ax = axes[i]
-        ax.imshow(value, cmap='gray')
+        cmap = 'inferno' if key is not 'original' or 'optical' else 'gray'
+        if 'histogram' in key:
+            ax.hist(value[value!=0], bins=30, alpha=0.7)
+            ax.set_xlabel('Pixel Value')
+            ax.set_ylabel('Frequency')
+            ax.set_title(f'Histogram of {key}')
+        elif 'temperature_profile_y' in key:
+            for x in range(value.shape[1]):
+                column = value[:, x]
+                ax.plot(range(len(column)), column, color='blue', alpha=0.7)
+        elif 'temperature_profile_x' in key:
+            for i, line in enumerate(value): 
+                ax.plot(range(len(line)), line, color='blue', alpha=0.7)
+        else:    
+            ax.imshow(value, cmap=cmap)
         ax.set_title(key)
     
     for j in range(i + 1, nrows * ncols):
@@ -168,13 +198,17 @@ with tab2:
                                  masks=data_segmentation['masks'],
                                  boxes=data_segmentation['boxes'],
                                  classes=data_segmentation['classes'])
-
-        st.write(f"Timestamp: {img_obj.get_metadata()['DateTime']}")
-        cols = st.columns(5)
-        
+              
         st.pyplot(generate_visualization(unpacked_image, data_segmentation, inline=True))
 
+        st.button(f"Save {file.name} to database",
+                  on_click=lambda: session.add(img_obj) or session.commit()) 
+
         df_info.append(img_obj.get_thermal_stats())
+    
+    all_info = session.query(ProcessedImage).count()
+    st.write(f"Total images processed: {all_info}")
+    
 
     if len(df_info) != 0:
         st.markdown('---')
