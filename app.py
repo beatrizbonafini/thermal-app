@@ -120,32 +120,49 @@ def generate_visualization(unpacked_image, data_segmentation, inline=False):
         if i >= nrows * ncols: break
         ax = axes[i]
         cmap = 'inferno' if key is not 'original' or 'optical' else 'gray'
+        ax.axis('off')
         if 'histogram' in key:
             ax.hist(value[value!=0], bins=30, alpha=0.7)
             ax.set_xlabel('Pixel Value')
             ax.set_ylabel('Frequency')
             ax.set_title(f'Histogram of {key}')
+            ax.axis('on')
+
         elif 'temperature_profile_y' in key:
             for x in range(value.shape[1]):
                 column = value[:, x]
                 ax.plot(range(len(column)), column, color='blue', alpha=0.7)
+            ax.axis('on')
         elif 'temperature_profile_x' in key:
             for i, line in enumerate(value): 
                 ax.plot(range(len(line)), line, color='blue', alpha=0.7)
+            ax.axis('on')
         else:    
             ax.imshow(value, cmap=cmap)
+            
         ax.set_title(key)
     
-    for j in range(i + 1, nrows * ncols):
-        axes[j].axis('off')
-
+    for i in range(len(dict_images.items()), len(axes)):
+        axes[i].axis('off')
     plt.tight_layout()
     return fig
 
+
 with tab1:
 
-    uploaded_file = st.file_uploader("Upload a image", 
-                                     type=["jpg", "png", "jpeg"])
+    file_format_option = st.radio(
+        "Choose the type of file to upload:",
+        ('CSV', 'JPG/PNG/JPEG'),
+        index=1
+    )
+
+    if file_format_option == 'CSV':
+        st.error("CSV file upload is not supported yet. Please upload JPG/PNG/JPEG files.")
+        st.stop()
+
+    elif file_format_option == 'JPG/PNG/JPEG':
+        uploaded_file = st.file_uploader("Upload a image", 
+                            type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
         
@@ -170,10 +187,20 @@ with tab1:
 
 with tab2:
 
-    uploaded_files = st.file_uploader("Upload all files from a folder (select multiple)",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True
+    file_format_option = st.radio(
+        "Choose the type of files to upload:",
+        ('CSV', 'JPG/PNG/JPEG'),
+        index=1
     )
+
+    if file_format_option == 'CSV':
+        st.error("CSV file upload is not supported yet. Please upload JPG/PNG/JPEG files.")
+        st.stop()
+
+    elif file_format_option == 'JPG/PNG/JPEG':
+        uploaded_files = st.file_uploader("Upload all files from a folder (select multiple)",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True)
 
     df_info = []
 

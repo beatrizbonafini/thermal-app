@@ -5,11 +5,6 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import uuid
 from datetime import datetime
-from PIL import Image
-import io
-
-from backend.instace_segmentation import InstanceSegmentationPredictor
-import control
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -30,12 +25,11 @@ if 'patient_data' not in st.session_state:
                     'images': {
                         'img01': {
                            'fileName': 'Full_Back.png',
-                           'image_bytes': None, # Example data has no image bytes
                            'regions': [
-                                { 'id': 'r1', 'name': 'Upper Back R', 'color': 'red', 'points': np.array([[0.55, 0.2], [0.85, 0.2], [0.8, 0.45], [0.55, 0.4]]), 't_avg': 34.8, 't_max': 35.2, 'deltaT': 0.9, 'histogram': [2, 5, 10, 4, 1] },
-                                { 'id': 'r2', 'name': 'Upper Back L', 'color': 'orange', 'points': np.array([[0.45, 0.2], [0.15, 0.2], [0.2, 0.45], [0.45, 0.4]]), 't_avg': 33.9, 't_max': 34.3, 'deltaT': -0.9, 'histogram': [4, 8, 5, 2, 0] },
-                                { 'id': 'r3', 'name': 'Lower Back R', 'color': 'green', 'points': np.array([[0.55, 0.5], [0.8, 0.55], [0.75, 0.75], [0.55, 0.7]]), 't_avg': 35.1, 't_max': 35.5, 'deltaT': 0.2, 'histogram': [1, 3, 7, 9, 3] },
-                                { 'id': 'r4', 'name': 'Lower Back L', 'color': 'blue', 'points': np.array([[0.45, 0.5], [0.2, 0.55], [0.25, 0.75], [0.45, 0.7]]), 't_avg': 34.9, 't_max': 35.2, 'deltaT': -0.2, 'histogram': [2, 4, 8, 6, 2] },
+                                { 'id': 'r1', 'name': 'Dorso Superior D', 'color': 'red', 'points': np.array([[0.55, 0.2], [0.85, 0.2], [0.8, 0.45], [0.55, 0.4]]), 't_avg': 34.8, 't_max': 35.2, 'deltaT': 0.9, 'histogram': [2, 5, 10, 4, 1] },
+                                { 'id': 'r2', 'name': 'Dorso Superior E', 'color': 'orange', 'points': np.array([[0.45, 0.2], [0.15, 0.2], [0.2, 0.45], [0.45, 0.4]]), 't_avg': 33.9, 't_max': 34.3, 'deltaT': -0.9, 'histogram': [4, 8, 5, 2, 0] },
+                                { 'id': 'r3', 'name': 'Lombar D', 'color': 'green', 'points': np.array([[0.55, 0.5], [0.8, 0.55], [0.75, 0.75], [0.55, 0.7]]), 't_avg': 35.1, 't_max': 35.5, 'deltaT': 0.2, 'histogram': [1, 3, 7, 9, 3] },
+                                { 'id': 'r4', 'name': 'Lombar E', 'color': 'blue', 'points': np.array([[0.45, 0.5], [0.2, 0.55], [0.25, 0.75], [0.45, 0.7]]), 't_avg': 34.9, 't_max': 35.2, 'deltaT': -0.2, 'histogram': [2, 4, 8, 6, 2] },
                            ]
                         }
                     }
@@ -46,107 +40,27 @@ if 'patient_data' not in st.session_state:
 
 # --- Functions ---
 
-
-def read_and_unpack_image(file):
-    
-    try:
-        file_bytes = file.read()
-        unpacked_file = control.unpack_from_bytes(file_bytes)
-        
-        thermal_matrix = unpacked_file[0]
-        optical_image = unpacked_file[1]
-        grayscale_image = unpacked_file[2]
-
-        original_image = Image.open(file)
-        exif_data = original_image._getexif()
-    
-        buffer = io.BytesIO()
-        grayscale_image.save(buffer, format="PNG")
-        buffer.seek(0)
-
-        return {
-                'buffer': buffer,
-                'thermal': thermal_matrix,
-                'gray': grayscale_image,
-                'optical': optical_image,
-                'original': original_image, 
-                'metadata': exif_data
-            }
-      
-    except Exception as e:
-        st.error(f"Error reading image: {e}")
-        return None
-
 def simulate_segmentation_and_metrics(uploaded_image):
-    """
-    Simulates the segmentation process for a single image.
-    In the real world, you would call your AI model here.
-    This demo returns a fixed set of regions.
-    """
-    server_config = InstanceSegmentationPredictor(model_weights_path="models/implant/model_final.pth", class_names=["head", "implant"])
-    unpacked_image = read_and_unpack_image(uploaded_image)
-    
-    data_segmentation = server_config.predict(unpacked_image['gray'])
-    masks = data_segmentation['masks']
-    boxes = data_segmentation['boxes']
-    
-    w, h = unpacked_image['gray'].size
-    polygon_boxes = []
-
-    for box in boxes:
-        x1, y1, x2, y2 = box
-        polygon = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
-        norm_polygon = polygon / np.array([w, h])
-        polygon_boxes.append(norm_polygon)
-
-
-    print(np.array(boxes[0]).reshape(-1, 2))
-    data = [{ 
-        'id': 'r1', 
-        'name': 'Implant Region', 
-        'color': 'red', 
-        'points': polygon_boxes[1],  # Example points, should be replaced with actual segmentation points
-        't_avg': 34.8, 
-        't_max': 35.2, 
-        'deltaT': 0.9, 
-        'histogram': [2, 5, 10, 4, 1] }]
-
+    """Simulates the segmentation process for a single image."""
+    # Returns a fixed set of regions for the demo.
+    # In the real world, you would call your AI model here.
     template_regions = st.session_state.patient_data['p001']['studies']['study_20250620']['images']['img01']['regions']
-    return data
+    return template_regions
 
 def create_thermal_image(palette, opacity, show_regions, image_data, selected_region_id):
-    """Generates the thermal image with a region overlay, using a real image if available."""
+    """Generates the thermal image with a region overlay."""
     fig, ax = plt.subplots(figsize=(8, 8))
+    gradient = np.linspace(0, 1, 256).reshape(1, -1)
+    gradient = np.vstack((gradient, gradient))
+    ax.imshow(gradient, aspect='auto', cmap=palette, extent=[0, 1, 0, 1], origin='lower')
 
-    # Display the actual image if it exists, otherwise fall back to a gradient
-    if image_data.get('image_bytes'):
-        try:
-            img = Image.open(io.BytesIO(image_data['image_bytes']))
-            img_array = np.array(img)
-            height, width = img_array.shape[:2]
-            ax.imshow(img, cmap=palette)
-        except Exception as e:
-            st.error(f"Could not read image file. Error: {e}")
-            return fig # Return empty figure on error
-    else:
-        # Fallback for example data
-        width, height = 1, 1  # Use normalized coordinates for the gradient
-        gradient = np.linspace(0, 1, 256).reshape(1, -1)
-        gradient = np.vstack((gradient, gradient))
-        ax.imshow(gradient, aspect='auto', cmap=palette, extent=[0, 1, 0, 1], origin='lower')
-
-    # Draw regions, scaling their coordinates to the image dimensions
-    if show_regions and image_data.get('regions'):
+    if show_regions and image_data:
         for region in image_data['regions']:
-            # Scale points from normalized [0, 1] to image [width, height]
-            scaled_points = region['points'] * np.array([width, height])
-            
-            polygon = Polygon(scaled_points, closed=True, facecolor=region['color'], alpha=opacity, edgecolor='white', linewidth=1.5)
+            polygon = Polygon(region['points'], closed=True, facecolor=region['color'], alpha=opacity, edgecolor='white', linewidth=1.5)
             ax.add_patch(polygon)
             if region['id'] == selected_region_id:
-                highlight_polygon = Polygon(scaled_points, closed=True, facecolor='none', edgecolor='yellow', linewidth=3)
+                highlight_polygon = Polygon(region['points'], closed=True, facecolor='none', edgecolor='yellow', linewidth=3)
                 ax.add_patch(highlight_polygon)
-    
     ax.set_axis_off()
     return fig
 
@@ -199,7 +113,6 @@ if st.sidebar.button("Process Study"):
             segmented_regions = simulate_segmentation_and_metrics(uploaded_file)
             new_study['images'][image_id] = {
                 'fileName': uploaded_file.name,
-                'image_bytes': uploaded_file.getvalue(), # Store the actual image bytes
                 'regions': segmented_regions
             }
         
@@ -250,12 +163,13 @@ if selected_study_id:
         )
         selected_image_id = image_options[selected_image_key]
         image_data = study_data['images'][selected_image_id]
-        #image_data = read_and_unpack_image(image_data)['gray']
 
         # Visualization controls
         st.sidebar.subheader("Visualization Tools")
+        
         opacity = st.sidebar.slider("Region Opacity", 0.0, 1.0, 0.5, 0.05, key=f"opacity_{patient_id}_{selected_study_id}")
         palette = st.sidebar.selectbox("Color Palette", ["plasma", "jet", "inferno", "gray"], index=0, key=f"palette_{patient_id}_{selected_study_id}")
+        
         show_regions = st.sidebar.checkbox("Show Regions", value=True, key=f"show_{patient_id}_{selected_study_id}")
         
         # Region selection for highlight
@@ -267,9 +181,10 @@ if selected_study_id:
             index=len(region_names) - 1,
             key=f"select_region_{patient_id}_{selected_study_id}_{selected_image_id}"
         )
+        
         selected_region_id = region_names[selected_region_name]
         
-        fig = create_thermal_image(palette, opacity, show_regions, image_data, selected_region_id)
+        fig = create_thermal_image(image, palette, opacity, show_regions, image_data, selected_region_id)
         st.pyplot(fig)
 
     with col2:
@@ -295,3 +210,4 @@ if selected_study_id:
             st.info("Highlight a region to see its temperature distribution.")
 else:
     st.info("⬅️ To begin, load a new study or select an existing patient and study from the sidebar.")
+
