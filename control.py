@@ -266,3 +266,25 @@ def unpack_from_bytes(file_bytes: bytes):
             shutil.os.remove(tmp_path)
         
         return (celsius, optical, grayscale)
+
+def get_histogram(thermal_matrix, bins=30):
+    """
+    Calculate the histogram of a thermal matrix.
+    
+    Parameters:
+    - thermal_matrix: np.ndarray, the thermal image data.
+    - bins: int, number of bins for the histogram.
+    
+    Returns:
+    - hist: np.ndarray, histogram values.
+    - bin_edges: np.ndarray, edges of the bins.
+    """
+    hist, bin_edges = np.histogram(thermal_matrix[thermal_matrix!=0], bins=bins)
+    array_bins_edges = []
+    for i in range(len(hist)):
+        upper_limit = bin_edges[i + 1]
+        lower_limit = bin_edges[i]
+        line = f"{lower_limit:.1f} - {upper_limit:.1f}"
+        array_bins_edges.append(line)
+    
+    return hist, array_bins_edges

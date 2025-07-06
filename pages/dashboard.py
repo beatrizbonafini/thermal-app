@@ -3,10 +3,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
+import plotly.express as px
+import plotly.graph_objects as go
 import uuid
 from datetime import datetime
 from PIL import Image
 import io
+import cv2
 
 from backend.instace_segmentation import InstanceSegmentationPredictor
 import control
@@ -14,7 +17,7 @@ import control
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Thermography Analysis System",
-    page_icon="🌡️",
+    #page_icon="🌡️",
     layout="wide"
 )
 
@@ -47,17 +50,17 @@ if 'patient_data' not in st.session_state:
 # --- Functions ---
 
 
-def read_and_unpack_image(file):
+def read_and_unpack_image(uploaded_image) -> dict:
     
     try:
-        file_bytes = file.read()
+        file_bytes = uploaded_image.read()
         unpacked_file = control.unpack_from_bytes(file_bytes)
         
         thermal_matrix = unpacked_file[0]
         optical_image = unpacked_file[1]
         grayscale_image = unpacked_file[2]
 
-        original_image = Image.open(file)
+        original_image = Image.open(uploaded_image)
         exif_data = original_image._getexif()
     
         buffer = io.BytesIO()
@@ -77,77 +80,134 @@ def read_and_unpack_image(file):
         st.error(f"Error reading image: {e}")
         return None
 
-def simulate_segmentation_and_metrics(uploaded_image):
+def mask_to_polygon(mask: np.ndarray) -> list:
     """
-    Simulates the segmentation process for a single image.
-    In the real world, you would call your AI model here.
-    This demo returns a fixed set of regions.
+    Convert a binary mask to a polygon representation.
+    """
+    mask_uint8 = mask.astype(np.uint8) * 255
+    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours: return []
+    
+    main_contour = max(contours, key=cv2.contourArea)
+    polygon_points = np.squeeze(main_contour).tolist()
+
+    if not isinstance(polygon_points[0], list):
+        polygon_points = [polygon_points]
+
+    return polygon_points
+
+def segmentation_and_metrics(uploaded_image: bytes) -> list:
+    """
+    Segmentation process for a single image.
+    This function returns a fixed set of regions.
     """
     server_config = InstanceSegmentationPredictor(model_weights_path="models/implant/model_final.pth", class_names=["head", "implant"])
     unpacked_image = read_and_unpack_image(uploaded_image)
-    
     data_segmentation = server_config.predict(unpacked_image['gray'])
     masks = data_segmentation['masks']
-    boxes = data_segmentation['boxes']
+    classes = data_segmentation['classes']
     
     w, h = unpacked_image['gray'].size
     polygon_boxes = []
 
-    for box in boxes:
-        x1, y1, x2, y2 = box
-        polygon = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
-        norm_polygon = polygon / np.array([w, h])
-        polygon_boxes.append(norm_polygon)
-
-
-    print(np.array(boxes[0]).reshape(-1, 2))
-    data = [{ 
-        'id': 'r1', 
-        'name': 'Implant Region', 
-        'color': 'red', 
-        'points': polygon_boxes[1],  # Example points, should be replaced with actual segmentation points
-        't_avg': 34.8, 
-        't_max': 35.2, 
-        'deltaT': 0.9, 
-        'histogram': [2, 5, 10, 4, 1] }]
+    for mask, label in zip(masks, classes):
+        polygon_points = mask_to_polygon(np.array(mask))
+        if not polygon_points:
+            continue
+        polygon_boxes.append((polygon_points, label))
+    
+    all_polygons = []
+    i = 0
+    for polygon in polygon_boxes:
+        points = polygon[0]
+        label = 'Head' if polygon[1] == 0 else 'Implant'
+        color = 'green' if label == 'Head' else 'blue'
+        histogram = control.get_histogram(unpacked_image['thermal'])
+        data = { 
+            'id': 'r1', 
+            'name': label, 
+            'color': color, 
+            'points': points,
+            't_avg': 34.8, 
+            't_max': 35.2, 
+            'deltaT': 0.9, 
+            'histogram': histogram
+        }
+    
+        all_polygons.append(data)
+        i = i + 1
 
     template_regions = st.session_state.patient_data['p001']['studies']['study_20250620']['images']['img01']['regions']
-    return data
+    return all_polygons
 
-def create_thermal_image(palette, opacity, show_regions, image_data, selected_region_id):
-    """Generates the thermal image with a region overlay, using a real image if available."""
-    fig, ax = plt.subplots(figsize=(8, 8))
+def create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id):
+    """
+    Gera a imagem térmica com sobreposição de regiões usando Plotly,
+    permitindo hover para ver os valores dos pixels.
+    """
+    img_array = None
+    fig = None
 
-    # Display the actual image if it exists, otherwise fall back to a gradient
+    # 1. Tentar carregar a imagem real. Se não houver, usar um gradiente.
     if image_data.get('image_bytes'):
         try:
+
+            ####### ESTOU TENTANDO RESOLVER ISSO AQUI ########
+            
+            #aux = read_and_unpack_image(io.BytesIO(image_data['image_bytes']))
+            #aux_img = Image.open(aux['gray'])
+            #print(type(aux_img))
+            
+            #######
+            
             img = Image.open(io.BytesIO(image_data['image_bytes']))
             img_array = np.array(img)
-            height, width = img_array.shape[:2]
-            ax.imshow(img, cmap=palette)
         except Exception as e:
-            st.error(f"Could not read image file. Error: {e}")
-            return fig # Return empty figure on error
+            st.error(f"Não foi possível ler o arquivo de imagem. Erro: {e}")
+            # Retorna uma figura vazia em caso de erro
+            return go.Figure()
     else:
-        # Fallback for example data
-        width, height = 1, 1  # Use normalized coordinates for the gradient
-        gradient = np.linspace(0, 1, 256).reshape(1, -1)
-        gradient = np.vstack((gradient, gradient))
-        ax.imshow(gradient, aspect='auto', cmap=palette, extent=[0, 1, 0, 1], origin='lower')
+        # Fallback para dados de exemplo se não houver imagem
+        img_array = np.linspace(0, 255, 300*300, dtype=np.uint8).reshape(300, 300)
 
-    # Draw regions, scaling their coordinates to the image dimensions
+    # 2. Criar a figura base com px.imshow.
+    # Esta é a parte mágica que habilita o hover nos pixels.
+    # O hovertext mostrará x, y e o valor da cor (intensidade).
+    fig = px.imshow(img_array, color_continuous_scale=palette)
+
+    # 3. Desenhar as regiões, se habilitado
     if show_regions and image_data.get('regions'):
         for region in image_data['regions']:
-            # Scale points from normalized [0, 1] to image [width, height]
-            scaled_points = region['points'] * np.array([width, height])
-            
-            polygon = Polygon(scaled_points, closed=True, facecolor=region['color'], alpha=opacity, edgecolor='white', linewidth=1.5)
-            ax.add_patch(polygon)
+            points = region['points']
+            # O Plotly espera um caminho SVG para desenhar a forma
+            path = 'M ' + ' L '.join([f'{p[0]},{p[1]}' for p in points]) + ' Z'
+
+            # Adiciona o polígono da região
+            fig.add_shape(
+                type="path",
+                path=path,
+                fillcolor=region['color'],
+                opacity=opacity,
+                line=dict(color='white', width=1.5)
+            )
+
+            # Se a região for a selecionada, adiciona o destaque
             if region['id'] == selected_region_id:
-                highlight_polygon = Polygon(scaled_points, closed=True, facecolor='none', edgecolor='yellow', linewidth=3)
-                ax.add_patch(highlight_polygon)
-    
-    ax.set_axis_off()
+                fig.add_shape(
+                    type="path",
+                    path=path,
+                    fillcolor='rgba(0,0,0,0)',  # Preenchimento transparente
+                    line=dict(color='yellow', width=3)
+                )
+
+    # 4. Limpar o layout para parecer uma imagem pura
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),      # Remove margens
+        xaxis_visible=False, yaxis_visible=False, # Oculta os eixos
+        coloraxis_showscale=False              # Oculta a barra de cores
+    )
+
     return fig
 
 def format_delta_t(val):
@@ -169,7 +229,7 @@ st.sidebar.header("Analysis Controls")
 # Section to load a new study
 st.sidebar.divider()
 st.sidebar.subheader("Load New Study")
-new_patient_name = st.sidebar.text_input("Patient Name for the Study")
+new_patient_name = st.sidebar.text_input("Animal Name for the Study")
 uploaded_files = st.sidebar.file_uploader(
     "Select one or more image files", 
     type=['png', 'jpg', 'jpeg'],
@@ -196,7 +256,7 @@ if st.sidebar.button("Process Study"):
         # Process each uploaded image
         for i, uploaded_file in enumerate(uploaded_files):
             image_id = f"img_{i+1:02d}"
-            segmented_regions = simulate_segmentation_and_metrics(uploaded_file)
+            segmented_regions = segmentation_and_metrics(uploaded_file)
             new_study['images'][image_id] = {
                 'fileName': uploaded_file.name,
                 'image_bytes': uploaded_file.getvalue(), # Store the actual image bytes
@@ -211,10 +271,10 @@ if st.sidebar.button("Process Study"):
 st.sidebar.divider()
 st.sidebar.subheader("Analyze Existing Study")
 
-# Step 1: Select Patient
+# Step 1: Select Animal
 patient_names = {data['name']: patient_id for patient_id, data in st.session_state.patient_data.items()}
 selected_patient_name = st.sidebar.selectbox(
-    "1. Select Patient",
+    "1. Select Animal",
     options=list(patient_names.keys()),
     index=None,
     placeholder="Choose a patient..."
@@ -250,7 +310,8 @@ if selected_study_id:
         )
         selected_image_id = image_options[selected_image_key]
         image_data = study_data['images'][selected_image_id]
-        #image_data = read_and_unpack_image(image_data)['gray']
+        #image_data_aux = read_and_unpack_image(image_data)
+        #print(type(image_data))
 
         # Visualization controls
         st.sidebar.subheader("Visualization Tools")
@@ -269,12 +330,13 @@ if selected_study_id:
         )
         selected_region_id = region_names[selected_region_name]
         
-        fig = create_thermal_image(palette, opacity, show_regions, image_data, selected_region_id)
-        st.pyplot(fig)
+        fig = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
+        st.plotly_chart(fig, use_container_width=True)
+
 
     with col2:
         st.subheader("Metrics and Regions")
-        st.markdown(f"**Patient:** {patient['name']} | **Study:** {selected_study_id}")
+        st.markdown(f"**Animal:** {patient['name']} | **Study:** {selected_study_id}")
         st.markdown(f"**Image:** {image_data['fileName']}")
         
         metrics_df = pd.DataFrame(image_data['regions'])[['name', 't_avg', 't_max', 'deltaT']]
@@ -288,7 +350,7 @@ if selected_study_id:
         st.subheader("Temperature Distribution")
         if selected_region_id:
             region_data = next(r for r in image_data['regions'] if r['id'] == selected_region_id)
-            hist_df = pd.DataFrame({'Temperature Range (°C)': ['33-34', '34-35', '35-36', '36-37', '37-38'], 'Pixel Count': region_data['histogram']}).set_index('Temperature Range (°C)')
+            hist_df = pd.DataFrame({'Temperature Range (°C)': region_data['histogram'][1], 'Pixel Count': region_data['histogram'][0]}).set_index('Temperature Range (°C)')
             st.bar_chart(hist_df)
             st.caption(f"Showing distribution for: **{selected_region_name}**")
         else:
