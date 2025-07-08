@@ -120,16 +120,16 @@ def thermal_stats(thermal_matrix, exif_data=None):
         info['MakerNote'] = 'No EXIF data found'
 
     stats = {
-        'max': [calculate_max(thermal_matrix)],
-        'min': [calculate_min(thermal_matrix)],
-        'mean': [calculate_mean(thermal_matrix)],
-        'std':[ calculate_std(thermal_matrix)],
-        'median': [calculate_median(thermal_matrix)],
-        'var': [calculate_var(thermal_matrix)],
-        'percentil_5': [calculate_percentil(thermal_matrix, 5)],
-        'percentil_95': [calculate_percentil(thermal_matrix, 95)],
+        'max': calculate_max(thermal_matrix),
+        'min': calculate_min(thermal_matrix),
+        'mean': calculate_mean(thermal_matrix),
+        'std':calculate_std(thermal_matrix),
+        'median': calculate_median(thermal_matrix),
+        'var': calculate_var(thermal_matrix),
+        'percentil_5': calculate_percentil(thermal_matrix, 5),
+        'percentil_95': calculate_percentil(thermal_matrix, 95),
     } | info
-    return pd.DataFrame(stats)
+    return stats
 
 def calculate_histogram(thermal_matrix, bins=60):
     """
