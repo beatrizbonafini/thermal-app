@@ -2,8 +2,6 @@ from typing import List, Union
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
 import plotly.express as px
 import plotly.graph_objects as go
 import uuid
@@ -15,37 +13,34 @@ import cv2
 from backend.instace_segmentation import InstanceSegmentationPredictor
 import control
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Thermography Analysis System",
     #page_icon="🌡️",
     layout="wide"
 )
 
-# --- Initial Data and Session Management ---
-# The structure now supports multiple studies per animal.
 if 'animal_data' not in st.session_state:
     st.session_state.animal_data = {
-        'p001': {
-            'name': 'Ana Silva (Example)',
-            'studies': {
-                'study_20250620': {
-                    'studyDate': '2025-06-20',
-                    'images': {
-                        'img01': {
-                           'fileName': 'Full_Back.png',
-                           'image_bytes': None, # Example data has no image bytes
-                           'regions': [
-                                { 'id': 'r1', 'name': 'Upper Back R', 'color': 'red', 'points': np.array([[0.55, 0.2], [0.85, 0.2], [0.8, 0.45], [0.55, 0.4]]), 't_avg': 34.8, 't_max': 35.2, 'deltaT': 0.9, 'histogram': [2, 5, 10, 4, 1] },
-                                { 'id': 'r2', 'name': 'Upper Back L', 'color': 'orange', 'points': np.array([[0.45, 0.2], [0.15, 0.2], [0.2, 0.45], [0.45, 0.4]]), 't_avg': 33.9, 't_max': 34.3, 'deltaT': -0.9, 'histogram': [4, 8, 5, 2, 0] },
-                                { 'id': 'r3', 'name': 'Lower Back R', 'color': 'green', 'points': np.array([[0.55, 0.5], [0.8, 0.55], [0.75, 0.75], [0.55, 0.7]]), 't_avg': 35.1, 't_max': 35.5, 'deltaT': 0.2, 'histogram': [1, 3, 7, 9, 3] },
-                                { 'id': 'r4', 'name': 'Lower Back L', 'color': 'blue', 'points': np.array([[0.45, 0.5], [0.2, 0.55], [0.25, 0.75], [0.45, 0.7]]), 't_avg': 34.9, 't_max': 35.2, 'deltaT': -0.2, 'histogram': [2, 4, 8, 6, 2] },
-                           ]
-                        }
-                    }
-                }
-            }
-        }
+        # 'p001': {
+        #     'name': 'Ana Silva (Example)',
+        #     'studies': {
+        #         'study_20250620': {
+        #             'studyDate': '2025-06-20',
+        #             'images': {
+        #                 'img01': {
+        #                    'fileName': 'Full_Back.png',
+        #                    'image_bytes': None, # Example data has no image bytes
+        #                    'regions': [
+        #                         { 'id': 'r1', 'name': 'Upper Back R', 'color': 'red', 'points': np.array([[0.55, 0.2], [0.85, 0.2], [0.8, 0.45], [0.55, 0.4]]), 't_avg': 34.8, 't_max': 35.2, 'deltaT': 0.9, 'histogram': [2, 5, 10, 4, 1] },
+        #                         { 'id': 'r2', 'name': 'Upper Back L', 'color': 'orange', 'points': np.array([[0.45, 0.2], [0.15, 0.2], [0.2, 0.45], [0.45, 0.4]]), 't_avg': 33.9, 't_max': 34.3, 'deltaT': -0.9, 'histogram': [4, 8, 5, 2, 0] },
+        #                         { 'id': 'r3', 'name': 'Lower Back R', 'color': 'green', 'points': np.array([[0.55, 0.5], [0.8, 0.55], [0.75, 0.75], [0.55, 0.7]]), 't_avg': 35.1, 't_max': 35.5, 'deltaT': 0.2, 'histogram': [1, 3, 7, 9, 3] },
+        #                         { 'id': 'r4', 'name': 'Lower Back L', 'color': 'blue', 'points': np.array([[0.45, 0.5], [0.2, 0.55], [0.25, 0.75], [0.45, 0.7]]), 't_avg': 34.9, 't_max': 35.2, 'deltaT': -0.2, 'histogram': [2, 4, 8, 6, 2] },
+        #                    ]
+        #                 }
+        #             }
+        #         }
+        #     }
+        # }
     }
 
 # --- Functions ---
@@ -308,7 +303,7 @@ st.sidebar.header("Analysis Controls")
 # Section to load a new study
 st.sidebar.divider()
 st.sidebar.subheader("Load New Study")
-new_animal_name = st.sidebar.text_input("Animal ID for the Study")
+new_animal_name = st.sidebar.text_input("Animal ID for the Study", help='Provide the identify number of animal in the study')
 uploaded_files = st.sidebar.file_uploader(
     "Select one or more image files", 
     type=['png', 'jpg', 'jpeg'],
@@ -383,63 +378,119 @@ if selected_study_id:
         st.subheader("Image Viewer")
         # Step 3: Select Image within the Study
         image_options = {f"{img_id}: {data['fileName']}": img_id for img_id, data in study_data['images'].items()}
+        image_options['Temporal Analysis'] = None
         selected_image_key = st.selectbox(
             "3. Select Image for Analysis",
             options=list(image_options.keys())
         )
-        selected_image_id = image_options[selected_image_key]
-        image_data = study_data['images'][selected_image_id]
 
-        # Visualization controls
-        st.sidebar.subheader("Visualization Tools")
-        opacity = st.sidebar.slider("Region Opacity", 0.0, 1.0, 0.5, 0.05, key=f"opacity_{animal_id}_{selected_study_id}")
-        palette = st.sidebar.selectbox("Color Palette", ["plasma", "jet", "inferno", "gray"], index=0, key=f"palette_{animal_id}_{selected_study_id}")
-        show_regions = st.sidebar.checkbox("Show Regions", value=True, key=f"show_{animal_id}_{selected_study_id}")
-        
-        # Region selection for highlight
-        region_names = {region['name']: region['id'] for region in image_data['regions']}
-        region_names["None"] = None
-        selected_region_name = st.selectbox(
-            "Highlight a region:",
-            options=list(region_names.keys()),
-            index=len(region_names) - 1,
-            key=f"select_region_{animal_id}_{selected_study_id}_{selected_image_id}"
-        )
-        selected_region_id = region_names[selected_region_name]
-        
-        fig = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
-        st.plotly_chart(fig, use_container_width=True)
+        # plotar grafico da progressao de temperatura
+        if selected_image_key == 'Temporal Analysis':
+            array_metric = []
+            metrics = ['fileName', 'name', 't_avg', 't_max', 't_min', 't_std', 't_median', 't_var', 'percentil_5', 'percentil_95']
+            for image_data in study_data['images'].items():
+                for region in image_data[1]['regions']:
+                    region['fileName'] = image_data[1]['fileName']
+                    array_metric.append({key: region[key] for key in metrics})
+            df = pd.DataFrame(array_metric)
+            
+            df = df.rename(columns={
+                'fileName': 'Image',
+                'name': 'Region',
+                't_min': 'Minimum Temperature',
+                't_avg': 'Average Temperature',
+                't_max': 'Maximum Temperature'
+            })
+            
+            all_regions = df['Region'].unique()
+            selected_regions = st.sidebar.multiselect(
+                "Select the Region(s)",
+                options=all_regions,
+                default=all_regions
+            )
 
-        fig_3d = plot_3d_thermal_chart(image_data, palette)
-        st.plotly_chart(fig_3d, use_container_width=True)
+            metric_options = ['Minimum Temperature', 'Average Temperature', 'Maximum Temperature']
+            selected_metric = st.sidebar.selectbox(
+                "Select Temperature Metric",
+                options=metric_options
+            )
+
+            if not selected_regions:
+                st.warning("Please select at least one region in the sidebar to view the data.")
+            else:
+                # Filtra o DataFrame com base nas regiões selecionadas pelo usuário
+                df_filtered = df[df['Region'].isin(selected_regions)]
+
+                st.subheader(f"Evolution of {selected_metric}")
+
+                # Cria o gráfico de linhas
+                st.line_chart(
+                    df_filtered,
+                    x='Image',          # Eixo X: As imagens em sequência
+                    y=selected_metric,   # Eixo Y: A métrica de temperatura escolhida
+                    color='Region'       # Cor: Diferencia as linhas por região
+                )
+
+                # Mostra a tabela de dados brutos que foi usada para gerar o gráfico
+                st.subheader("Detailed Data")
+                st.dataframe(df_filtered)
+
+
+        else:
+            selected_image_id = image_options[selected_image_key]
+            image_data = study_data['images'][selected_image_id]
+
+            # Visualization controls
+            st.sidebar.subheader("Visualization Tools")
+            opacity = st.sidebar.slider("Region Opacity", 0.0, 1.0, 0.5, 0.05, key=f"opacity_{animal_id}_{selected_study_id}")
+            palette = st.sidebar.selectbox("Color Palette", ["plasma", "jet", "inferno", "gray"], index=0, key=f"palette_{animal_id}_{selected_study_id}")
+            show_regions = st.sidebar.checkbox("Show Regions", value=True, key=f"show_{animal_id}_{selected_study_id}")
+            
+            # Region selection for highlight
+            region_names = {region['name']: region['id'] for region in image_data['regions']}
+            region_names["None"] = None
+            selected_region_name = st.selectbox(
+                "Highlight a region:",
+                options=list(region_names.keys()),
+                index=len(region_names) - 1,
+                key=f"select_region_{animal_id}_{selected_study_id}_{selected_image_id}"
+            )
+            selected_region_id = region_names[selected_region_name]
+            
+            fig = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
+            st.plotly_chart(fig, use_container_width=True)
+
+            fig_3d = plot_3d_thermal_chart(image_data, palette)
+            st.plotly_chart(fig_3d, use_container_width=True)
 
 
     with col2:
-        st.subheader("Metrics and Regions")
-        st.write(f"**Animal:** {animal['name']}")
-        st.write(f"**Image:** {image_data['fileName']}")
-        
-        metrics_df = pd.DataFrame(image_data['regions'])[['name', 't_avg', 't_max', 't_min', 't_std', 't_median', 't_var', 'percentil_5', 'percentil_95']]
-        metrics_df.rename(columns={
-            'name': 'Region', 
-            't_avg': 'Avg T (°C)', 
-            't_max': 'Max T (°C)',
-            't_min': 'Min T (°C)',
-            't_std': 'Std Dev (°C)',
-            't_median': 'Median T (°C)',
-            't_var': 'Variance (°C²)',
-            'percentil_5': '5th Percentile (°C)',
-            'percentil_95': '95th Percentile (°C)'
-            }, inplace=True)
-        st.dataframe(metrics_df, hide_index=True, use_container_width=True)
-        
-        st.subheader("Temperature Distribution")
-        if selected_region_id:
-            region_data = next(r for r in image_data['regions'] if r['id'] == selected_region_id)
-            hist_df = pd.DataFrame({'Temperature Range (°C)': region_data['histogram'][1], 'Pixel Count': region_data['histogram'][0]}).set_index('Temperature Range (°C)')
-            st.write(f"Showing distribution for: **{selected_region_name}**")
-            st.plotly_chart(create_histogram_plotly(region_data['histogram'][0], region_data['histogram'][1]), use_container_width=True)
-        else:
-            st.info("Highlight a region to see its temperature distribution.")
+        if selected_image_key != 'Temporal Analysis':
+            st.subheader("Metrics and Regions")
+            st.write(f"**Animal:** {animal['name']}")
+            st.write(f"**Image:** {image_data['fileName']}")
+            
+            metrics_df = pd.DataFrame(image_data['regions'])[['name', 't_avg', 't_max', 't_min', 't_std', 't_median', 't_var', 'percentil_5', 'percentil_95']]
+            metrics_df.rename(columns={
+                'name': 'Region', 
+                't_avg': 'Avg T (°C)', 
+                't_max': 'Max T (°C)',
+                't_min': 'Min T (°C)',
+                't_std': 'Std Dev (°C)',
+                't_median': 'Median T (°C)',
+                't_var': 'Variance (°C²)',
+                'percentil_5': '5th Percentile (°C)',
+                'percentil_95': '95th Percentile (°C)'
+                }, inplace=True)
+            st.dataframe(metrics_df, hide_index=True, use_container_width=True)
+            
+            st.subheader("Temperature Distribution")
+            if selected_region_id:
+                region_data = next(r for r in image_data['regions'] if r['id'] == selected_region_id)
+                hist_df = pd.DataFrame({'Temperature Range (°C)': region_data['histogram'][1], 'Pixel Count': region_data['histogram'][0]}).set_index('Temperature Range (°C)')
+                st.write(f"Showing distribution for: **{selected_region_name}**")
+                st.plotly_chart(create_histogram_plotly(region_data['histogram'][0], region_data['histogram'][1]), use_container_width=True)
+            else:
+                st.info("Highlight a region to see its temperature distribution.")
 else:
     st.info("⬅️ To begin, load a new study or select an existing animal and study from the sidebar.")
