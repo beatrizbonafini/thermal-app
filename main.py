@@ -54,6 +54,7 @@ def read_and_unpack_image(uploaded_image) -> dict:
         thermal_matrix = unpacked_file[0]
         optical_image = unpacked_file[1]
         grayscale_image = unpacked_file[2]
+        pic_to_pic_image = unpacked_file[3]
 
         original_image = Image.open(uploaded_image)
         exif_data = original_image._getexif()
@@ -67,7 +68,8 @@ def read_and_unpack_image(uploaded_image) -> dict:
                 'thermal': thermal_matrix,
                 'gray': grayscale_image,
                 'optical': optical_image,
-                'original': original_image, 
+                'original': original_image,
+                'pic_to_pic': pic_to_pic_image,
                 'metadata': exif_data
             }
       
@@ -192,7 +194,8 @@ def create_thermal_image_plotly(palette, opacity, show_regions, image_data, sele
                 )
 
     fig.update_layout(
-        #margin=dict(l=0, r=0, t=0, b=0),      # Remove margens
+      title='2D Visualization of Thermal Data',
+       # margin=dict(l=0, r=0, t=0, b=0),      # Remove margens
         xaxis_visible=False, 
         yaxis_visible=False, # Oculta os eixos
         coloraxis_showscale=True,              # Oculta a barra de cores
@@ -288,6 +291,39 @@ def plot_3d_thermal_chart(palette, opacity, show_regions, image_data, selected_r
         margin=dict(l=0, r=0, b=0, t=40) # Minimal margins
     )
     
+    return fig
+
+def plot_thermal_in_optical(image_data: dict) -> go.Figure:
+    """
+    Generates a picture-in-picture view of the original image with a thermal overlay.
+
+    Args:
+        image_data (dict): Dictionary containing the original image and thermal data.
+
+    Returns:
+        go.Figure: A Plotly Figure object ready to be displayed.
+    """
+    if image_data.get('image_bytes'):
+        try:
+            aux = read_and_unpack_image(io.BytesIO(image_data['image_bytes']))
+            pic_to_pic_array = np.array(aux['pic_to_pic'])
+        except Exception as e:
+            st.error(f"Não foi possível ler o arquivo de imagem. Erro: {e}")
+            return go.Figure()
+
+    fig = go.Figure()
+
+    # Add the original image as a background
+    fig.add_trace(go.Image(z=pic_to_pic_array))
+
+    # Add the thermal overlay
+    fig.update_layout(
+        title='Picture-in-Picture View',
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        margin=dict(l=0, r=0, b=0, t=40)
+    )
+
     return fig
 
 def format_delta_t(val):
@@ -469,6 +505,8 @@ if selected_study_id:
             fig_3d = plot_3d_thermal_chart(palette, opacity, show_regions, image_data, selected_region_id)
             st.plotly_chart(fig_3d, use_container_width=True)
 
+            fig_thermal_optical = plot_thermal_in_optical(image_data)
+            st.plotly_chart(fig_thermal_optical, use_container_width=True)
 
     with col2:
         if selected_image_key != 'Temporal Analysis':

@@ -255,6 +255,10 @@ def unpack_from_bytes(file_bytes: bytes):
             thermogram = flyr.unpack(tmp_path)
             celsius = thermogram.celsius
             optical = thermogram.optical
+
+            mask = thermogram.kelvin > thermogram.kelvin.mean()
+            pic_to_pic = thermogram.picture_in_picture_pil(mask=mask, mask_mode='classical', render_opacity=0.5)
+            
             grayscale = thermogram.render_pil(
                 min_v=20,
                 max_v=40,
@@ -265,7 +269,7 @@ def unpack_from_bytes(file_bytes: bytes):
         finally:
             shutil.os.remove(tmp_path)
         
-        return (celsius, optical, grayscale)
+        return (celsius, optical, grayscale, pic_to_pic)
 
 def get_histogram(thermal_matrix, bins=30):
     """
