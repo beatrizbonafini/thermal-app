@@ -15,7 +15,7 @@ import control
 
 st.set_page_config(
     page_title="Thermography Analysis System",
-    #page_icon="🌡️",
+    page_icon="🌡️",
     layout="wide"
 )
 
@@ -222,7 +222,7 @@ def create_histogram_plotly(hist_counts: Union[np.array, List],
     fig.update_layout(showlegend=True)
     return fig
 
-def plot_3d_thermal_chart(image_data, palette) -> go.Figure:
+def plot_3d_thermal_chart(palette, opacity, show_regions, image_data, selected_region_id) -> go.Figure:
     """
     Generates an interactive 3D surface plot from a thermal data matrix.
 
@@ -244,6 +244,12 @@ def plot_3d_thermal_chart(image_data, palette) -> go.Figure:
     if not isinstance(img_array, np.ndarray) or img_array.ndim != 2:
         raise ValueError("Input must be a 2D NumPy array.")
 
+    if show_regions and image_data.get('regions') and selected_region_id:
+        region = next(r for r in image_data['regions'] if r['id'] == selected_region_id)
+        mask = np.zeros_like(img_array, dtype=np.uint8)
+        polygon = np.array(region['points'], dtype=np.int32)
+        cv2.fillPoly(mask, [polygon], 1)
+        img_array = np.where(mask, img_array, np.nan)
 
     height, width = img_array.shape
     x_coords = np.linspace(0, width - 1, width)
@@ -457,10 +463,10 @@ if selected_study_id:
             )
             selected_region_id = region_names[selected_region_name]
             
-            fig = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
-            st.plotly_chart(fig, use_container_width=True)
+            fig_2d = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
+            st.plotly_chart(fig_2d, use_container_width=True)
 
-            fig_3d = plot_3d_thermal_chart(image_data, palette)
+            fig_3d = plot_3d_thermal_chart(palette, opacity, show_regions, image_data, selected_region_id)
             st.plotly_chart(fig_3d, use_container_width=True)
 
 
