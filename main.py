@@ -195,7 +195,7 @@ def create_thermal_image_plotly(palette, opacity, show_regions, image_data, sele
 
     fig.update_layout(
       title='2D Visualization of Thermal Data',
-       # margin=dict(l=0, r=0, t=0, b=0),      # Remove margens
+        #margin=dict(l=0, r=0, t=0, b=40),      # Remove margens
         xaxis_visible=False, 
         yaxis_visible=False, # Oculta os eixos
         coloraxis_showscale=True,              # Oculta a barra de cores
@@ -321,7 +321,8 @@ def plot_thermal_in_optical(image_data: dict) -> go.Figure:
         title='Picture-in-Picture View',
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
-        margin=dict(l=0, r=0, b=0, t=40)
+        margin=dict(l=0, r=0, b=0, t=40),
+        coloraxis_showscale=True   
     )
 
     return fig
@@ -476,8 +477,6 @@ if selected_study_id:
                 # Mostra a tabela de dados brutos que foi usada para gerar o gráfico
                 st.subheader("Detailed Data")
                 st.dataframe(df_filtered)
-
-
         else:
             selected_image_id = image_options[selected_image_key]
             image_data = study_data['images'][selected_image_id]
@@ -499,14 +498,18 @@ if selected_study_id:
             )
             selected_region_id = region_names[selected_region_name]
             
-            fig_2d = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
-            st.plotly_chart(fig_2d, use_container_width=True)
+            subcol1, subcol2 = st.columns([0.5, 0.5])
 
+            with subcol1:
+                fig_2d = create_thermal_image_plotly(palette, opacity, show_regions, image_data, selected_region_id)
+                st.plotly_chart(fig_2d, use_container_width=True)
+            
+            with subcol2:
+                fig_thermal_optical = plot_thermal_in_optical(image_data)
+                st.plotly_chart(fig_thermal_optical, use_container_width=True)
+                
             fig_3d = plot_3d_thermal_chart(palette, opacity, show_regions, image_data, selected_region_id)
             st.plotly_chart(fig_3d, use_container_width=True)
-
-            fig_thermal_optical = plot_thermal_in_optical(image_data)
-            st.plotly_chart(fig_thermal_optical, use_container_width=True)
 
     with col2:
         if selected_image_key != 'Temporal Analysis':
