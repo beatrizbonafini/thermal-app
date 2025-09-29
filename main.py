@@ -484,7 +484,7 @@ if selected_study_id:
             # Visualization controls
             st.sidebar.subheader("Visualization Tools")
             opacity = st.sidebar.slider("Region Opacity", 0.0, 1.0, 0.5, 0.05, key=f"opacity_{animal_id}_{selected_study_id}")
-            palette = st.sidebar.selectbox("Color Palette", ["plasma", "jet", "inferno", "gray"], index=0, key=f"palette_{animal_id}_{selected_study_id}")
+            palette = st.sidebar.selectbox("Color Palette", ["plasma", "jet", "inferno", "gray", "viridis"], index=0, key=f"palette_{animal_id}_{selected_study_id}")
             show_regions = st.sidebar.checkbox("Show Regions", value=True, key=f"show_{animal_id}_{selected_study_id}")
             
             # Region selection for highlight
